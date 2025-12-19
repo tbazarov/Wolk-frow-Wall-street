@@ -4,10 +4,21 @@
 #include <thread>
 #include <chrono>
 
+// Вспомогательный брокер для тестов
+class MockBroker : public Broker {
+public:
+    using Broker::Broker;
+    void run() override {
+        while (active_) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+};
+
 TEST(BrokerTest, CashAndItemOperations) {
     Exchange exchange(0.01);
     Item oil("Oil", 100.0);
-    Broker broker(1, 500.0, 10.0, oil, &exchange);
+    MockBroker broker(1, 500.0, 10.0, oil, &exchange);
 
     EXPECT_DOUBLE_EQ(broker.getCash(), 500.0);
     EXPECT_DOUBLE_EQ(broker.getItemQty(), 10.0);
@@ -30,10 +41,10 @@ TEST(BrokerTest, CashAndItemOperations) {
 TEST(ExchangeTest, PlaceOrder) {
     Exchange exchange(0.01);
     Item oil("Oil", 100.0);
-    Broker broker(1, 1000.0, 5.0, oil, &exchange);
+    MockBroker broker(1, 1000.0, 5.0, oil, &exchange);
     exchange.registerBroker(&broker);
 
-    broker.placeBuyOrder(2.0, 95.0);
+    broker.placeBuyOrder(2.0, 95.0);   
     broker.placeSellOrder(1.0, 105.0);
 
     auto orders = exchange.getOrders();
@@ -44,8 +55,8 @@ TEST(ExchangeTest, MatchOrders) {
     Exchange exchange(0.0);
     Item oil("Oil", 100.0);
 
-    Broker buyer(1, 1000.0, 0.0, oil, &exchange);
-    Broker seller(2, 0.0, 10.0, oil, &exchange);
+    MockBroker buyer(1, 1000.0, 0.0, oil, &exchange);
+    MockBroker seller(2, 0.0, 10.0, oil, &exchange);
     exchange.registerBroker(&buyer);
     exchange.registerBroker(&seller);
 
@@ -58,14 +69,14 @@ TEST(ExchangeTest, MatchOrders) {
     EXPECT_EQ(orders.size(), 0);
 
     EXPECT_NEAR(buyer.getItemQty(), 5.0, 1e-5);
-    EXPECT_NEAR(seller.getCash(), 500.0, 1e-5); // (102+98)/2 * 5 = 500
+    EXPECT_NEAR(seller.getCash(), 500.0, 1e-5);
 }
 
 TEST(BigWinBrokerTest, BuysOnGoodDeal) {
     Exchange exchange(0.0);
     Item oil("Oil", 100.0);
 
-    Broker seller(1, 0.0, 10.0, oil, &exchange);
+    MockBroker seller(1, 0.0, 10.0, oil, &exchange);
     exchange.registerBroker(&seller);
     seller.placeSellOrder(3.0, 70.0);
 
