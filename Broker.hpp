@@ -15,6 +15,11 @@ public:
     void stop() { active_ = false; }
     void join();
 
+    // торговый интерфейс 
+    void placeBuyOrder(double quantity, double pricePerUnit);
+    void placeSellOrder(double quantity, double pricePerUnit);
+
+    // Геттеры
     size_t getId() const { return id_; }
     double getCash() const { return cash_; }
     double getItemQty() const { return itemQty_; }
@@ -32,7 +37,4 @@ protected:
     Exchange* exchange_;
     std::thread thread_;
     std::atomic<bool> active_{true};
-
-    void placeBuyOrder(double quantity, double pricePerUnit);
-    void placeSellOrder(double quantity, double pricePerUnit);
 };
