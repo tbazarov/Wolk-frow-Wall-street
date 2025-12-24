@@ -1,25 +1,19 @@
 #pragma once
 #include "Order.hpp"
 #include <thread>
-#include <atomic>
+#include <memory>
 
 class Exchange;
 
 class Broker {
 public:
+    using Ptr = std::shared_ptr<Broker>;
+
     Broker(size_t id, double cash, double itemQty, const Item& item, Exchange* ex);
-    virtual ~Broker();
+    virtual ~Broker() = default;
 
-    void start();
-    virtual void run() = 0;
-    void stop() { active_ = false; }
-    void join();
+    virtual void run(std::stop_token st) = 0; // stop_token
 
-    // торговый интерфейс 
-    void placeBuyOrder(double quantity, double pricePerUnit);
-    void placeSellOrder(double quantity, double pricePerUnit);
-
-    // Геттеры
     size_t getId() const { return id_; }
     double getCash() const { return cash_; }
     double getItemQty() const { return itemQty_; }
@@ -29,12 +23,13 @@ public:
     bool spendCash(double amount);
     bool sellItem(double amount);
 
+    void placeBuyOrder(double quantity, double pricePerUnit);
+    void placeSellOrder(double quantity, double pricePerUnit);
+
 protected:
     size_t id_;
     double cash_;
     double itemQty_;
     Item item_;
     Exchange* exchange_;
-    std::thread thread_;
-    std::atomic<bool> active_{true};
 };

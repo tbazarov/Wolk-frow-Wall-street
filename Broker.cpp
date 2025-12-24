@@ -1,53 +1,44 @@
-#include "BigWinBroker.hpp"
+#include "Broker.hpp"
 #include "Exchange.hpp"
-#include "Item.hpp"
-#include <thread>
+#include <iostream>
+#include <mutex>
 
-BigWinBroker::BigWinBroker(size_t id, double cash, double itemQty, const Item& item, Exchange* ex, double threshold)
-    : Broker(id, cash, itemQty, item, ex), profitThreshold_(threshold) {}
+static std::mutex ioMutex;
 
-void BigWinBroker::run() {
-    while (active_) {
-        auto orders = exchange_->getOrders();
-        bool traded = false;
+Broker::Broker(size_t id, double cash, double itemQty, const Item& item, Exchange* ex)
+    : id_(id), cash_(cash), itemQty_(itemQty), item_(item), exchange_(ex) {}
 
-        for (const auto& order : orders) {
-            if (order.type == OrderType::SELL && order.pricePerUnit <= item_.basePrice / profitThreshold_) {
-                double qty = std::min(3.0, cash_ / order.pricePerUnit);
-                if (qty > 0.1) {
-                    placeBuyOrder(qty, order.pricePerUnit);
-                    traded = true;
-                    break;
-                }
-            }
+void Broker::addCash(double amount) { cash_ += amount; }
+void Broker::addItem(double amount) { itemQty_ += amount; }
+
+bool Broker::spendCash(double amount) {
+    if (cash_ >= amount) { cash_ -= amount; return true; }
+    return false;
+}
+
+bool Broker::sellItem(double amount) {
+    if (itemQty_ >= amount) { itemQty_ -= amount; return true; }
+    return false;
+}
+
+void Broker::placeBuyOrder(double quantity, double pricePerUnit) {
+    if (spendCash(quantity * pricePerUnit)) {
+        Order order{id_, OrderType::BUY, item_, quantity, pricePerUnit};
+        exchange_->placeOrder(order);
+        {
+            std::lock_guard<std::mutex> lock(ioMutex);
+            std::cout << "B" << id_ << " BUY " << quantity << "" << pricePerUnit << "\n";
         }
+    }
+}
 
-        if (!traded) {
-            for (const auto& order : orders) {
-                if (order.type == OrderType::BUY && order.pricePerUnit >= item_.basePrice * profitThreshold_) {
-                    double qty = std::min(3.0, itemQty_);
-                    if (qty > 0.1) {
-                        placeSellOrder(qty, order.pricePerUnit);
-                        traded = true;
-                        break;
-                    }
-                }
-            }
+void Broker::placeSellOrder(double quantity, double pricePerUnit) {
+    if (sellItem(quantity)) {
+        Order order{id_, OrderType::SELL, item_, quantity, pricePerUnit};
+        exchange_->placeOrder(order);
+        {
+            std::lock_guard<std::mutex> lock(ioMutex);
+            std::cout << "B" << id_ << " SELL " << quantity << "" << pricePerUnit << "\n";
         }
-
-        if (traded) {
-            idleTicks_ = 0;
-        } else {
-            idleTicks_++;
-        }
-
-        if (idleTicks_ > MAX_IDLE && itemQty_ > 0) {
-            double fireSalePrice = item_.basePrice * 0.8;
-            double qty = std::min(2.0, itemQty_);
-            placeSellOrder(qty, fireSalePrice);
-            idleTicks_ = 0;
-        }
-
-        std::this_thread::sleep_for(std::chrono::seconds(2));
     }
 }
